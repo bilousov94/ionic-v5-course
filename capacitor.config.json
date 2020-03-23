@@ -1,0 +1,8 @@
+{
+  "appId": "com.myfirstcourse",
+  "appName": "ionic-ang-course",
+  "bundledWebRuntime": false,
+  "npmClient": "npm",
+  "webDir": "www",
+  "cordova": {}
+}
