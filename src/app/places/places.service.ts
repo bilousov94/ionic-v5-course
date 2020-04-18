@@ -31,9 +31,12 @@ export class PlacesService {
   constructor(private authService: AuthService, private http: HttpClient) { }
 
   fetchPlaces() {
-      return this.http
-          .get<{ [key: string]: PlaceData }>('https://ionic-angular-course-99f1c.firebaseio.com/offered-places.json')
-          .pipe( map(resData => {
+      return this.authService.token.pipe(
+          take(1),
+          switchMap(token => {
+          return this.http
+              .get<{ [key: string]: PlaceData }>(`https://ionic-angular-course-99f1c.firebaseio.com/offered-places.json?auth=${token}`);
+      }), map(resData => {
               const places = [];
               for (const key in resData) {
                   if (resData.hasOwnProperty(key)) {
@@ -61,12 +64,14 @@ export class PlacesService {
   }
 
   getPlace(id: string) {
-      return this.http
-          .get<PlaceData>(
-              `https://ionic-angular-course-99f1c.firebaseio.com/offered-places/${id}.json`
-          )
-          .pipe(
-              map(placeData => {
+      return this.authService.token.pipe(
+          take(1),
+          switchMap(token => {
+          return this.http
+              .get<PlaceData>(
+                  `https://ionic-angular-course-99f1c.firebaseio.com/offered-places/${id}.json?auth=${token}`
+              );
+      }), map(placeData => {
                   return new Place(
                       id,
                       placeData.title,
@@ -84,25 +89,36 @@ export class PlacesService {
 
   addPLace(title: string, description: string, price: number, dateFrom: Date, dateTo: Date, location: PlaceLocation) {
       let generatedId: string;
-      const newPlace = new Place(
-          Math.random().toString(),
-          title,
-          description,
-          'https://static01.nyt.com/images/2010/01/31/realestate/31living_span-CA0/articleLarge.jpg?quality=75&auto=webp&disable=upscale',
-          price,
-          dateFrom,
-          dateTo,
-          this.authService.userId,
-          location
-      );
+      let fetchedUserId: string;
+      let newPlace: Place;
+      return this.authService.userId.pipe(take(1),
+          switchMap(userId => {
+            fetchedUserId = userId;
+            return this.authService.token;
+          }),
+          take(1),
+          switchMap(token => {
+          if (!fetchedUserId) {
+              throw new Error('No user found');
+          }
+          newPlace = new Place(
+              Math.random().toString(),
+              title,
+              description,
+              'https://static01.nyt.com/images/2010/01/31/realestate/31living_span-CA0/articleLarge.jpg?quality=75&auto=webp&disable=upscale',
+              price,
+              dateFrom,
+              dateTo,
+              fetchedUserId,
+              location
+          );
 
-     return this.http
-         .post<{name: string}>('https://ionic-angular-course-99f1c.firebaseio.com/offered-places.json', {
-             ...newPlace,
-             id: null
-         })
-         .pipe(
-             switchMap(resData => {
+          return this.http
+              .post<{name: string}>(`https://ionic-angular-course-99f1c.firebaseio.com/offered-places.json?auth=${token}`, {
+                  ...newPlace,
+                  id: null
+              });
+      }), switchMap(resData => {
                  generatedId = resData.name;
                  return this.places;
              }),
@@ -122,7 +138,11 @@ export class PlacesService {
 
   updatePlace(placeId: string, title: string, description: string) {
       let updatedPlaces: Place[];
-      return this.places.pipe(take(1),
+      let fetchedToken: string;
+      return this.authService.token.pipe(take(1), switchMap(token => {
+          fetchedToken = token;
+          return this.places;
+      }), take(1),
           switchMap(places => {
             if (!places || places.length <= 0) {
                 return this.fetchPlaces();
@@ -130,6 +150,7 @@ export class PlacesService {
                 return of(places);
             }
           }),
+          take(1),
           switchMap(places => {
                 const updatedPlaceIndex = places.findIndex(pl => pl.id === placeId);
                 updatedPlaces = [...places];
@@ -146,7 +167,7 @@ export class PlacesService {
                     oldPlace.location
                 );
                 return this.http.put(
-                    `https://ionic-angular-course-99f1c.firebaseio.com/offered-places/${placeId}.json`,
+                    `https://ionic-angular-course-99f1c.firebaseio.com/offered-places/${placeId}.json?auth=${fetchedToken}`,
                     { ...updatedPlaces[updatedPlaceIndex], id: null }
                 );
           }),
